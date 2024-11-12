@@ -7,6 +7,7 @@ const path = require('path');
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Directory to save MP3 files
 const AUDIO_DIR = '/var/www/html/audio/';
