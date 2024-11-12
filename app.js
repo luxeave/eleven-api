@@ -1,69 +1,65 @@
 require('dotenv').config()
-const express = require('express')
-const axios = require('axios')
-const app = express()
-const port = process.env.PORT || 3000
+const express = require('express');
+const axios = require('axios');
+const uuid = require('uuid');
+const fs = require('fs');
+const path = require('path');
 
-app.use(express.json())
+const app = express();
+app.use(express.json());
 
-app.post('/synthesize', async (req, res) => {
-    const text = req.body.text
+// Directory to save MP3 files
+const AUDIO_DIR = '/var/www/html/audio/';
 
-    // Updated this based on Elias feedback
-    // As this change will allow the user to pass 0 as a value, if no text is set in the text variable,
-    // text will be 0 and the condition will be false so "0" will be used to do TTS.
+// Ensure the directory exists
+fs.mkdirSync(AUDIO_DIR, { recursive: true });
 
-    // Previous condition
-    // if (text === undefined || text === null || text === '' || text == 0) {
+// ElevenLabs API settings
+const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1/text-to-speech/TMvmhlKUioQA4U7LOoko';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY; // Replace with your actual API key
 
+app.post('/api/convert', async (req, res) => {
+    const text = req.body.text;
     if (!text) {
-        res.status(400).send({ error: 'Text is required.' })
-        return
+        return res.status(400).json({ error: 'Text is required' });
     }
 
-    const voice =
-        req.body.voice == 0
-            ? '21m00Tcm4TlvDq8ikWAM'
-            : req.body.voice || '21m00Tcm4TlvDq8ikWAM'
+    // Prepare payload for ElevenLabs API
+    const payload = {
+        text: text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75
+        }
+    };
 
-    const voice_settings =
-        req.body.voice_settings == 0
-            ? {
-                stability: 0.75,
-                similarity_boost: 0.75,
-            }
-            : req.body.voice_settings || {
-                stability: 0.75,
-                similarity_boost: 0.75,
-            }
+    const headers = {
+        'Content-Type': 'application/json',
+        'xi-api-key': ELEVENLABS_API_KEY
+    };
 
     try {
-        const response = await axios.post(
-            `https://api.elevenlabs.io/v1/text-to-speech/${voice}`,
-            {
-                text: text,
-                voice_settings: voice_settings,
-            },
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    accept: 'audio/mpeg',
-                    'xi-api-key': `${process.env.ELEVENLABS_API_KEY}`,
-                },
-                responseType: 'arraybuffer',
-            }
-        )
+        // Call ElevenLabs API
+        const response = await axios.post(ELEVENLABS_API_URL, payload, { headers, responseType: 'arraybuffer' });
 
-        const audioBuffer = Buffer.from(response.data, 'binary')
-        const base64Audio = audioBuffer.toString('base64')
-        const audioDataURI = `data:audio/mpeg;base64,${base64Audio}`
-        res.send({ audioDataURI })
+        // Generate a unique filename
+        const filename = `${uuid.v4()}.mp3`;
+        const filePath = path.join(AUDIO_DIR, filename);
+
+        // Save MP3 file
+        fs.writeFileSync(filePath, response.data);
+
+        // Construct the URL to access the MP3 file
+        const fileUrl = `http://${process.env.DOMAIN}/audio/${filename}`; // Replace 'yourdomain.com' with your actual domain or IP
+
+        return res.status(200).json({ url: fileUrl });
     } catch (error) {
-        console.error(error)
-        res.status(500).send('Error occurred while processing the request.')
+        console.error('Error calling ElevenLabs API:', error.response ? error.response.data : error.message);
+        return res.status(500).json({ error: 'Failed to generate speech' });
     }
-})
+});
 
-app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`)
-})
+app.listen(3333, () => {
+    console.log('Server is running on port 3333');
+});

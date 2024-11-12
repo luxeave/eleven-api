@@ -11,8 +11,9 @@
   "description": "",
   "dependencies": {
     "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
     "elevenlabs": "^0.18.0",
-    "express": "^4.21.1"
-  },
-  "type": "module"
+    "express": "^4.21.1",
+    "uuid": "^11.0.3"
+  }
 }
